@@ -1,0 +1,30 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments/header :: header" />
+
+    <body>
+
+    <head th:replace="fragments/nav :: nav" />
+
+
+
+    <form th:object="${form}"  th:action="@{/home/searchResult}" method="post">
+        <!-- Product section-->
+        <section class="py-5">
+            <div class="container px-4 px-lg-5 my-5">
+                <div class="row gx-4 gx-lg-5 align-items-center">
+                    <div class="col-md-12">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="어떤 레시피를 찾으세요?" aria-label="search item " aria-describedby="basic-addon2">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="submit">검색</button>
+                            </div>
+                        </div>
+                    </di>
+                </div>
+            </div>
+        </section>
+    </form>
+        <div th:replace="fragments/footer :: footer"/>
+    </body>
+</html>
