@@ -21,17 +21,7 @@ public class JpaMain {
 
         try {
 
-            Member member1 = new Member();
-            member1.setId(1L);
-            member1.setName("kgh");
 
-            em.persist(member1);
-
-            /*Order order = new Order();
-            order.setId(10L);
-            order.setMember(member1);*/
-
-            //em.persist(order);
 
             tx.commit();
 
