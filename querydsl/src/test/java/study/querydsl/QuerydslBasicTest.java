@@ -867,4 +867,6 @@ public class QuerydslBasicTest {
 //        where
 //        member1.username = function('lower', member1.username)
     }
+
+
 }
