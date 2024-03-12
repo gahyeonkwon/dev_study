@@ -1,7 +1,12 @@
 package study.querydsl;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Predicate;
+import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -9,12 +14,17 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.PersistenceUnit;
+import jakarta.persistence.TypedQuery;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Commit;
 import org.springframework.transaction.annotation.Transactional;
+import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.QMemberDto;
+import study.querydsl.dto.UserDto;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
 import study.querydsl.entity.QTeam;
@@ -504,5 +514,357 @@ public class QuerydslBasicTest {
             System.out.println( " concat tuple =" + tuple);
         }
     }
+    
+    
+    @Test
+    @DisplayName("프로젝션 결과가 하나일때")
+    public void simpleProjection() {
 
+        List<String> result = queryFactory
+                .select(member.username)
+                .from(member)
+                .fetch();
+
+        for(String s : result) {
+                System.out.println("s = " + s);
+            }
+        
+        
+    }
+
+
+    @Test
+    @DisplayName("프로젝션 결과가 두개 일 때 ")
+    public void tupleProjection() {
+            List<Tuple> result = queryFactory
+                    .select(member.username, member.age)
+                    .from(member)
+                    .fetch();
+
+            for(Tuple tuple : result) {
+                String username = tuple.get(member.username);
+                Integer age = tuple.get(member.age);
+                System.out.println("username = " + username);
+                System.out.println("age = " + age);
+            }
+
+    }
+
+
+    @Test
+    public void findDtoByJPQL() {
+        List<MemberDto> result = em.createQuery("select new study.querydsl.dto.MemberDto(m.username, m.age) from Member m", MemberDto.class)
+                .getResultList();
+        // 생성자처럼 프로젝션 처리를 해줘야 함 -> new operation 을 활용하는 방법 ( 패키지명까지 다 적어줘야하고 생성자 방식만 제공하기 때문에 dto 에 생성자가 반드시 있어야 한다 )
+
+        for(MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+
+    }
+
+
+    @Test
+    @DisplayName("setter 를 이용한 querydsl")
+    public void findDtoBySetter() {
+        List<MemberDto> result = queryFactory
+                .select(Projections.bean(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for(MemberDto memberDto : result) {
+            System.out.println("memberDto =" + memberDto);
+        }
+
+    }
+
+
+    @Test
+    @DisplayName("field 를 사용함 - dto 의 getter / setter 과 관계 없이 사용가능")
+    public void findDtoByField() {
+        List<MemberDto> result = queryFactory
+                .select(Projections.fields(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for(MemberDto memberDto : result) {
+            System.out.println("memberDto =" + memberDto);
+        }
+
+    }
+
+
+
+    @Test
+    @DisplayName("field 를 사용함 - dto 의 getter / setter 과 관계 없이 사용가능")
+    public void findUserDtoByField() {
+        List<UserDto> result = queryFactory
+                .select(Projections.fields(UserDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        // 이렇게 쓰면 userDto 에 name 이 없기 때문에 userDto의 name 에는 null 이 들어간다
+        // 아래 처럼 as 를 추가해서 해결할 수 있다.
+
+        List<UserDto> result2 = queryFactory
+                .select(Projections.fields(UserDto.class,
+                        member.username.as("name"), // alias 를 추가한 모습
+                        member.age))
+                .from(member)
+                .fetch();
+
+
+        // 서브쿼리를 사용해서 alias 주기
+        QMember memberSub = new QMember("memberSub");
+        List<UserDto> result3 = queryFactory
+                .select(Projections.fields(UserDto.class,
+                        member.username.as("name"), // alias 를 추가한 모습
+
+                        ExpressionUtils.as(JPAExpressions
+                                .select(memberSub.age.max())
+                                .from(memberSub), "age")
+                ))
+                .from(member)
+                .fetch();
+
+    }
+
+
+
+    @Test
+    @DisplayName("생성자 방식")
+    public void findDtoByConstructor() {
+        List<MemberDto> result = queryFactory
+                .select(Projections.constructor(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for(MemberDto memberDto : result) {
+            System.out.println("memberDto =" + memberDto);
+        }
+
+    }
+
+    @Test
+    @DisplayName("생성자 방식 - 변수명이 달라도 타입을 보고 매핑됨  ")
+    public void findDtoByConstructor2() {
+
+        List<UserDto> result = queryFactory
+                .select(Projections.constructor(UserDto.class,
+                        member.username,
+                        member.age))
+                .from(member)
+                .fetch();
+
+        for(UserDto userDto : result) {
+            System.out.println("memberDto =" + userDto);
+        }
+
+    }
+
+
+    @Test
+    public void findDtoByQueryProjection() {
+        List<MemberDto> result = queryFactory
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for(MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+
+    @Test
+    @DisplayName("BooleanBuilder 를 사용해서 동적 쿼리 생성하기 ")
+    public void dynamicQuery_BooleanBuilder() {
+        String usernameParam = "member1";
+        Integer ageParam = null;
+
+        List<Member> result = searchMember1(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+
+    }
+
+    private List<Member> searchMember1(String usernameCond, Integer ageCond) {
+
+        BooleanBuilder builder = new BooleanBuilder();
+        if(usernameCond != null) {
+            builder.and(member.username.eq(usernameCond));
+
+        }
+
+        if(ageCond != null) {
+            builder.and(member.age.eq(ageCond));
+        }
+
+        return queryFactory
+                .selectFrom(member)
+                .where(builder)
+                .fetch();
+
+    }
+
+
+    @Test
+    @DisplayName("where 을 사용해서 동적 쿼리 사용하기 ")
+    public void dynamicQuery_WhereParam() {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember2(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+    }
+
+    private List<Member> searchMember2(String usernameCond, Integer ageCond) {
+        return queryFactory
+                .selectFrom(member)
+                //.where(usernameEq(usernameCond), ageEq(ageCond))
+                .where(allEq(usernameCond, ageCond)) // usernameEq, ageEq 를 합쳐서 allEq 로 합성할 수 있다
+                .fetch();
+    }
+
+    private BooleanExpression usernameEq(String usernameCond) {
+        if(usernameCond == null) {
+            return null;
+        } else {
+            return member.username.eq(usernameCond);
+        }
+    }
+
+    private BooleanExpression ageEq(Integer ageCond) {
+        return ageCond != null ? member.age.eq(ageCond) : null;
+    }
+
+    private BooleanExpression allEq(String usernameCond, Integer ageCond) {
+        return usernameEq(usernameCond).and(ageEq(ageCond));
+    }
+
+
+    @Test
+    @DisplayName("벌크연산 예제 ")
+    public void bulkUpdate() {
+
+
+        long count = queryFactory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(28))
+                .execute();
+
+        em.flush();
+        em.clear();
+
+        // /* update
+        //        Member member1
+        //    set
+        //        member1.username = ?1
+        //    where
+        //        member1.age < ?2 */
+
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .fetch();
+
+        for(Member member1 : result) {
+            System.out.println("member 1 = " + member1);
+        }
+
+    }
+
+
+    @Test
+    @DisplayName(" 더하기 연산 에제 ")
+    public void bulkAdd() {
+        queryFactory
+                .update(member)
+                .set(member.age, member.age.add(1))
+                .execute();
+    }
+
+
+    @Test
+    @DisplayName(" 곱하기 연산 예제  ")
+    public void bulkmultiply() {
+        queryFactory
+                .update(member)
+                .set(member.age, member.age.multiply(2))
+                .execute();
+    }
+
+    @Test
+    @DisplayName("삭제 예제")
+    public void bulkDelete() {
+        long count = queryFactory
+                .delete(member)
+                .where(member.age.gt(18))
+                .execute();
+
+    }
+
+
+    @Test
+    @DisplayName("function 사용 예제 - replace")
+    public void sqlFunction() {
+        List<String> result = queryFactory
+                .select(Expressions.stringTemplate("function('replace', {0}, {1}, {2})",
+                        member.username, "member", "M"))
+                .from(member)
+                .fetch();
+
+        for(String s : result) {
+            System.out.println("s = " + s);
+        }
+
+
+        // 결과 값
+//        function('replace', member1.username, ?1, ?2)
+//        from
+//        Member member1 */ select
+//        replace(m1_0.username, ?, ?)
+//        from
+//        member m1_0
+
+    }
+
+
+    @Test
+    @DisplayName("function 사용 예제 - lower ( 소문자 변환 ) ")
+    public void sqlFunction2() {
+        queryFactory
+                .select(member.username)
+                .from(member)
+                .where(member.username.eq(Expressions.stringTemplate("function('lower',{0})",
+                        member.username)))
+                .fetch();
+
+        //결과값
+//        select
+//        member1.username
+//                from
+//        Member member1
+//        where
+//        member1.username = function('lower', member1.username)
+    }
+
+
+
+    @Test
+    @DisplayName("function 사용 예제 - lower ( 소문자 변환 ) -> querydsl 내장함수사용하기 ")
+    public void sqlFunction2_querydsl() {
+        queryFactory
+                .select(member.username)
+                .from(member)
+                .where(member.username.eq(member.username.lower()))
+                .fetch();
+
+        //결과값
+//        select
+//        member1.username
+//                from
+//        Member member1
+//        where
+//        member1.username = function('lower', member1.username)
+    }
 }
